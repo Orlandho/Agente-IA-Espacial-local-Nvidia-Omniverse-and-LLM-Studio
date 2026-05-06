@@ -1,0 +1,18 @@
+# Archivos de compilacion y cache de Omniverse
+_build/
+_compiler/
+_data/
+*.kit
+
+# Cache de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Configuraciones de IDE locales (opcional pero recomendado)
+.vscode/
+.idea/
+
+# Entornos virtuales
+venv/
+env/
