@@ -9,7 +9,8 @@
 # its affiliates is strictly prohibited.
 
 import asyncio
-import aiohttp
+import urllib.request
+import urllib.error
 import json
 import omni.ext
 import omni.ui as ui
@@ -57,8 +58,25 @@ class MyExtension(omni.ext.IExt):
             # Launch the async task in the background
             asyncio.ensure_future(self._send_to_lm_studio(prompt))
 
+    def _make_sync_request(self, url: str, payload: dict) -> dict:
+        """Synchronous HTTP request using urllib."""
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'}, method='POST')
+
+        try:
+            with urllib.request.urlopen(req, timeout=30) as response:
+                response_body = response.read().decode('utf-8')
+                return {"success": True, "data": json.loads(response_body)}
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode('utf-8') if e.fp else str(e)
+            return {"success": False, "error_type": "HTTPError", "status": e.code, "message": error_body}
+        except urllib.error.URLError as e:
+            return {"success": False, "error_type": "URLError", "message": str(e.reason)}
+        except Exception as e:
+            return {"success": False, "error_type": "Exception", "message": str(e)}
+
     async def _send_to_lm_studio(self, prompt: str):
-        """Asynchronous HTTP request to LM Studio local server."""
+        """Asynchronous HTTP request to LM Studio local server without blocking UI."""
         url = "http://localhost:1234/v1/chat/completions"
         payload = {
             "model": "local-model",
@@ -68,20 +86,29 @@ class MyExtension(omni.ext.IExt):
             "temperature": 0.7
         }
 
+        loop = asyncio.get_event_loop()
+
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, timeout=30) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        # Extract the message content from the JSON response
-                        content = data['choices'][0]['message']['content']
-                        self._response_label.text = content
-                    else:
-                        error_text = await response.text()
-                        self._response_label.text = f"Error del servidor ({response.status}): {error_text}"
+            # Run the synchronous request in a background thread
+            result = await loop.run_in_executor(None, self._make_sync_request, url, payload)
+
+            if result.get("success"):
+                data = result.get("data", {})
+                content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
+                self._response_label.text = content
+            else:
+                error_type = result.get("error_type")
+                if error_type == "HTTPError":
+                    self._response_label.text = f"Error del servidor ({result.get('status')}): {result.get('message')}"
+                elif error_type == "URLError":
+                    self._response_label.text = f"Error de URL al conectar con LM Studio: {result.get('message')}"
+                else:
+                    self._response_label.text = f"Excepción al conectar con LM Studio: {result.get('message')}"
+                    print(f"[orlandoexplorer.ia_test] Error: {result.get('message')}")
+
         except Exception as e:
-            self._response_label.text = f"Excepción al conectar con LM Studio: {str(e)}"
-            print(f"[orlandoexplorer.ia_test] Error: {e}")
+            self._response_label.text = f"Excepción en la ejecución asíncrona: {str(e)}"
+            print(f"[orlandoexplorer.ia_test] Error asíncrono: {e}")
 
     def on_shutdown(self):
         """Called when the extension is disabled."""
