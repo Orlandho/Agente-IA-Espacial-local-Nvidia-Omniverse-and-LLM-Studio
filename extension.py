@@ -8,54 +8,82 @@
 # without an express license agreement from NVIDIA CORPORATION or
 # its affiliates is strictly prohibited.
 
+import asyncio
+import aiohttp
+import json
 import omni.ext
 import omni.ui as ui
 
 
-# Functions and vars are available to other extensions as usual in python:
-# `orlandoexplorer.ia_test.some_public_function(x)`
-def some_public_function(x: int):
-    """This is a public function that can be called from other extensions."""
-    print(f"[orlandoexplorer.ia_test] some_public_function was called with {x}")
-    return x ** x
-
-
-# Any class derived from `omni.ext.IExt` in the top level module (defined in
-# `python.modules` of `extension.toml`) will be instantiated when the extension
-# gets enabled, and `on_startup(ext_id)` will be called. Later when the
-# extension gets disabled on_shutdown() is called.
 class MyExtension(omni.ext.IExt):
-    """This extension manages a simple counter UI."""
-    # ext_id is the current extension id. It can be used with the extension
-    # manager to query additional information, like where this extension is
-    # located on the filesystem.
+    """NVIDIA Omniverse Extension to communicate with LM Studio."""
+
     def on_startup(self, _ext_id):
-        """This is called every time the extension is activated."""
-        print("[orlandoexplorer.ia_test] Extension startup")
+        """Called when the extension is enabled."""
+        print("[orlandoexplorer.ia_test] LM Studio Extension startup")
 
-        self._count = 0
-        self._window = ui.Window(
-            "Python ia teste powered by gemini", width=300, height=300
-        )
+        self._window = ui.Window("IA Test LM Studio", width=400, height=450)
+        
         with self._window.frame:
-            with ui.VStack():
-                label = ui.Label("")
+            with ui.VStack(spacing=10, padding=10):
+                ui.Label("Prompt para LM Studio:", height=20)
+                
+                # Multi-line StringField for user input
+                self._input_field = ui.StringField(multiline=True, height=150)
+                self._input_field.model.set_value("Hola, ¿cómo estás?")
+                
+                # Send Button
+                self._send_button = ui.Button(
+                    "Enviar a LM Studio", 
+                    clicked_fn=self._on_send_clicked,
+                    height=40
+                )
+                
+                ui.Label("Respuesta:", height=20)
+                
+                # Response Label with word wrap
+                with ui.ScrollingFrame(height=200, style={"background_color": 0xFF222222}):
+                    self._response_label = ui.Label(
+                        "Esperando entrada...", 
+                        word_wrap=True, 
+                        alignment=ui.Alignment.TOP_LEFT
+                    )
 
-                def on_click():
-                    self._count += 1
-                    label.text = f"count: {self._count}"
+    def _on_send_clicked(self):
+        """Callback for the button click."""
+        prompt = self._input_field.model.get_value_as_string()
+        if prompt:
+            self._response_label.text = "Enviando petición a LM Studio..."
+            # Launch the async task in the background
+            asyncio.ensure_future(self._send_to_lm_studio(prompt))
 
-                def on_reset():
-                    self._count = 0
-                    label.text = "empty"
+    async def _send_to_lm_studio(self, prompt: str):
+        """Asynchronous HTTP request to LM Studio local server."""
+        url = "http://localhost:1234/v1/chat/completions"
+        payload = {
+            "model": "local-model",
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.7
+        }
 
-                on_reset()
-
-                with ui.HStack():
-                    ui.Button("Add", clicked_fn=on_click)
-                    ui.Button("Reset", clicked_fn=on_reset)
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=30) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        # Extract the message content from the JSON response
+                        content = data['choices'][0]['message']['content']
+                        self._response_label.text = content
+                    else:
+                        error_text = await response.text()
+                        self._response_label.text = f"Error del servidor ({response.status}): {error_text}"
+        except Exception as e:
+            self._response_label.text = f"Excepción al conectar con LM Studio: {str(e)}"
+            print(f"[orlandoexplorer.ia_test] Error: {e}")
 
     def on_shutdown(self):
-        """This is called every time the extension is deactivated. It is used
-        to clean up the extension state."""
-        print("[orlandoexplorer.ia_test] Extension shutdown")
+        """Called when the extension is disabled."""
+        print("[orlandoexplorer.ia_test] LM Studio Extension shutdown")
+        self._window = None
