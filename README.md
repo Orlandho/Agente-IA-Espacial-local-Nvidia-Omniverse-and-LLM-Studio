@@ -7,7 +7,6 @@ El sistema emplea una arquitectura desacoplada para garantizar el rendimiento de
 * **Frontend:** NVIDIA Omniverse Kit SDK (Python).
 * **Comunicación:** Peticiones asíncronas vía `aiohttp` para evitar el bloqueo del hilo de renderizado principal.
 * **Inferencia:** Servidor local compatible con OpenAI API (LM Studio) ejecutando Gemma 4.
-* **Hardware Base:** Optimizado para procesadores Intel Core i5-12600K y gráficas RTX 5060 Ti con 16GB de VRAM.
 
 ## Características Principales
 * **Interfaz Asíncrona:** UI construida con `omni.ui` que no se congela durante la inferencia de la IA.
