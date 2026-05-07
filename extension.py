@@ -90,65 +90,96 @@ class MyExtension(omni.ext.IExt):
             "Debes responder única y estrictamente con un bloque de código Python delimitado por ```python y ```."
         )
 
-        payload = {
-            "model": "local-model",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.7
-        }
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ]
 
+        max_retries = 2
         loop = asyncio.get_event_loop()
 
-        try:
-            # Run the synchronous request in a background thread
-            result = await loop.run_in_executor(None, self._make_sync_request, url, payload)
+        for attempt in range(max_retries + 1):
+            payload = {
+                "model": "local-model",
+                "messages": messages,
+                "temperature": 0.7
+            }
 
-            if result.get("success"):
-                data = result.get("data", {})
-                content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
+            try:
+                # Run the synchronous request in a background thread
+                result = await loop.run_in_executor(None, self._make_sync_request, url, payload)
 
-                # Extract Python code using regex
-                match = re.search(r'```python\s*(.*?)\s*```', content, re.DOTALL)
-                if match:
-                    extracted_code = match.group(1).strip()
+                if result.get("success"):
+                    data = result.get("data", {})
+                    content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
 
-                    # Prepare execution environment
-                    exec_globals = {
-                        "omni": omni,
-                        "pxr": pxr,
-                        "Usd": Usd,
-                        "UsdGeom": UsdGeom,
-                        "Gf": Gf
-                    }
+                    # Extract Python code using regex
+                    match = re.search(r'```python\s*(.*?)\s*```', content, re.DOTALL)
+                    if match:
+                        extracted_code = match.group(1).strip()
 
-                    try:
-                        # Dynamically execute the extracted code
-                        exec(extracted_code, exec_globals)
-                        self._response_label.text = f"Código ejecutado exitosamente:\n{extracted_code}"
-                    except Exception as exec_err:
-                        error_msg = f"Error en la ejecución del código: {str(exec_err)}"
-                        self._response_label.text = error_msg
-                        print(f"[orlandoexplorer.ia_test] {error_msg}")
-                        print(f"[orlandoexplorer.ia_test] Código que falló:\n{extracted_code}")
+                        # Prepare execution environment
+                        exec_globals = {
+                            "omni": omni,
+                            "pxr": pxr,
+                            "Usd": Usd,
+                            "UsdGeom": UsdGeom,
+                            "Gf": Gf
+                        }
+
+                        try:
+                            # Dynamically execute the extracted code
+                            exec(extracted_code, exec_globals)
+                            self._response_label.text = f"Código ejecutado exitosamente:\n{extracted_code}"
+                            break  # Exit loop on success
+                        except Exception as exec_err:
+                            error_msg = str(exec_err)
+                            print(f"[orlandoexplorer.ia_test] Error en la ejecución del código: {error_msg}")
+                            print(f"[orlandoexplorer.ia_test] Código que falló:\n{extracted_code}")
+
+                            if attempt < max_retries:
+                                self._response_label.text = f"Error detectado. Intento de autocorrección {attempt + 1} de {max_retries}..."
+                                messages.append({"role": "assistant", "content": content})
+                                messages.append({
+                                    "role": "user",
+                                    "content": f"El código falló al ejecutarse en Omniverse con este error: {error_msg}. Analiza el error, asegúrate de usar correctamente la API de pxr/omni.usd y devuelve ÚNICAMENTE el código corregido dentro de ```python ... ```."
+                                })
+                            else:
+                                final_err = f"Se agotaron los reintentos. Último error: {error_msg}"
+                                self._response_label.text = final_err
+                                print(f"[orlandoexplorer.ia_test] {final_err}")
+                                break
+                    else:
+                        error_msg = "Error de formato: No se encontró ningún bloque de código ejecutable."
+                        print(f"[orlandoexplorer.ia_test] {error_msg}\nRespuesta original:\n{content}")
+
+                        if attempt < max_retries:
+                            self._response_label.text = f"Error detectado. Intento de autocorrección {attempt + 1} de {max_retries}..."
+                            messages.append({"role": "assistant", "content": content})
+                            messages.append({
+                                "role": "user",
+                                "content": "Error de formato: No se encontró ningún bloque de código ejecutable. Recuerda tu instrucción principal: responde ÚNICAMENTE con código Python encerrado entre las etiquetas ```python y ```, sin texto adicional."
+                            })
+                        else:
+                            final_err = f"Se agotaron los reintentos. Último error: {error_msg}"
+                            self._response_label.text = final_err
+                            print(f"[orlandoexplorer.ia_test] {final_err}")
+                            break
                 else:
-                    error_msg = "Error: No se encontró un bloque de código Python válido en la respuesta."
-                    self._response_label.text = error_msg
-                    print(f"[orlandoexplorer.ia_test] {error_msg}\nRespuesta original:\n{content}")
-            else:
-                error_type = result.get("error_type")
-                if error_type == "HTTPError":
-                    self._response_label.text = f"Error del servidor ({result.get('status')}): {result.get('message')}"
-                elif error_type == "URLError":
-                    self._response_label.text = f"Error de URL al conectar con LM Studio: {result.get('message')}"
-                else:
-                    self._response_label.text = f"Excepción al conectar con LM Studio: {result.get('message')}"
-                    print(f"[orlandoexplorer.ia_test] Error: {result.get('message')}")
+                    error_type = result.get("error_type")
+                    if error_type == "HTTPError":
+                        self._response_label.text = f"Error del servidor ({result.get('status')}): {result.get('message')}"
+                    elif error_type == "URLError":
+                        self._response_label.text = f"Error de URL al conectar con LM Studio: {result.get('message')}"
+                    else:
+                        self._response_label.text = f"Excepción al conectar con LM Studio: {result.get('message')}"
+                        print(f"[orlandoexplorer.ia_test] Error: {result.get('message')}")
+                    break  # Break on network/API errors
 
-        except Exception as e:
-            self._response_label.text = f"Excepción en la ejecución asíncrona: {str(e)}"
-            print(f"[orlandoexplorer.ia_test] Error asíncrono: {e}")
+            except Exception as e:
+                self._response_label.text = f"Excepción en la ejecución asíncrona: {str(e)}"
+                print(f"[orlandoexplorer.ia_test] Error asíncrono: {e}")
+                break  # Break on unexpected asyncio errors
 
     def on_shutdown(self):
         """Called when the extension is disabled."""
