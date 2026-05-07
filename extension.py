@@ -58,6 +58,8 @@ class MyExtension(omni.ext.IExt):
         prompt = self._input_field.model.get_value_as_string()
         if prompt:
             self._response_label.text = "Enviando petición a LM Studio..."
+            self._send_button.text = "Procesando..."
+            self._send_button.enabled = False
             # Launch the async task in the background
             asyncio.ensure_future(self._send_to_lm_studio(prompt))
 
@@ -67,7 +69,7 @@ class MyExtension(omni.ext.IExt):
         req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'}, method='POST')
 
         try:
-            with urllib.request.urlopen(req, timeout=30) as response:
+            with urllib.request.urlopen(req, timeout=600) as response:
                 response_body = response.read().decode('utf-8')
                 return {"success": True, "data": json.loads(response_body)}
         except urllib.error.HTTPError as e:
@@ -80,69 +82,86 @@ class MyExtension(omni.ext.IExt):
 
     async def _send_to_lm_studio(self, prompt: str):
         """Asynchronous HTTP request to LM Studio local server without blocking UI."""
-        url = "http://localhost:1234/v1/chat/completions"
+        try:
+            url = "http://localhost:1234/v1/chat/completions"
 
-        system_prompt = (
-            "Eres un experto desarrollador de Python para NVIDIA Omniverse. "
-            "Tu tarea es generar código Python válido para manipular escenas en Omniverse basándote en la petición del usuario. "
-            "Debes utilizar omni.usd.get_context().get_stage() y las clases correspondientes de pxr (como UsdGeom.Cube, UsdGeom.Sphere, etc.). "
-            "Tienes prohibido incluir explicaciones, saludos o cualquier texto adicional. "
-            "Debes responder única y estrictamente con un bloque de código Python delimitado por ```python y ```."
-        )
+            system_prompt = (
+                "Eres un experto desarrollador de Python para NVIDIA Omniverse. "
+                "Tu tarea es generar código Python válido para manipular escenas en Omniverse basándote en la petición del usuario. "
+                "Debes utilizar omni.usd.get_context().get_stage() y las clases correspondientes de pxr (como UsdGeom.Cube, UsdGeom.Sphere, etc.). "
+                "Tienes prohibido incluir explicaciones, saludos o cualquier texto adicional. "
+                "Debes responder única y estrictamente con un bloque de código Python delimitado por ```python y ```."
+            )
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
-        ]
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ]
 
-        max_retries = 2
-        loop = asyncio.get_event_loop()
+            max_retries = 2
+            loop = asyncio.get_event_loop()
 
-        for attempt in range(max_retries + 1):
-            payload = {
-                "model": "local-model",
-                "messages": messages,
-                "temperature": 0.7
-            }
+            for attempt in range(max_retries + 1):
+                payload = {
+                    "model": "local-model",
+                    "messages": messages,
+                    "temperature": 0.7
+                }
 
-            try:
-                # Run the synchronous request in a background thread
-                result = await loop.run_in_executor(None, self._make_sync_request, url, payload)
+                try:
+                    # Run the synchronous request in a background thread
+                    result = await loop.run_in_executor(None, self._make_sync_request, url, payload)
 
-                if result.get("success"):
-                    data = result.get("data", {})
-                    content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
+                    if result.get("success"):
+                        data = result.get("data", {})
+                        content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
 
-                    # Extract Python code using regex
-                    match = re.search(r'```python\s*(.*?)\s*```', content, re.DOTALL)
-                    if match:
-                        extracted_code = match.group(1).strip()
+                        # Extract Python code using regex
+                        match = re.search(r'```python\s*(.*?)\s*```', content, re.DOTALL)
+                        if match:
+                            extracted_code = match.group(1).strip()
 
-                        # Prepare execution environment
-                        exec_globals = {
-                            "omni": omni,
-                            "pxr": pxr,
-                            "Usd": Usd,
-                            "UsdGeom": UsdGeom,
-                            "Gf": Gf
-                        }
+                            # Prepare execution environment
+                            exec_globals = {
+                                "omni": omni,
+                                "pxr": pxr,
+                                "Usd": Usd,
+                                "UsdGeom": UsdGeom,
+                                "Gf": Gf
+                            }
 
-                        try:
-                            # Dynamically execute the extracted code
-                            exec(extracted_code, exec_globals)
-                            self._response_label.text = f"Código ejecutado exitosamente:\n{extracted_code}"
-                            break  # Exit loop on success
-                        except Exception as exec_err:
-                            error_msg = str(exec_err)
-                            print(f"[orlandoexplorer.ia_test] Error en la ejecución del código: {error_msg}")
-                            print(f"[orlandoexplorer.ia_test] Código que falló:\n{extracted_code}")
+                            try:
+                                # Dynamically execute the extracted code
+                                exec(extracted_code, exec_globals)
+                                self._response_label.text = f"Código ejecutado exitosamente:\n{extracted_code}"
+                                break  # Exit loop on success
+                            except Exception as exec_err:
+                                error_msg = str(exec_err)
+                                print(f"[orlandoexplorer.ia_test] Error en la ejecución del código: {error_msg}")
+                                print(f"[orlandoexplorer.ia_test] Código que falló:\n{extracted_code}")
+
+                                if attempt < max_retries:
+                                    self._response_label.text = f"Error detectado. Intento de autocorrección {attempt + 1} de {max_retries}..."
+                                    messages.append({"role": "assistant", "content": content})
+                                    messages.append({
+                                        "role": "user",
+                                        "content": f"El código falló al ejecutarse en Omniverse con este error: {error_msg}. Analiza el error, asegúrate de usar correctamente la API de pxr/omni.usd y devuelve ÚNICAMENTE el código corregido dentro de ```python ... ```."
+                                    })
+                                else:
+                                    final_err = f"Se agotaron los reintentos. Último error: {error_msg}"
+                                    self._response_label.text = final_err
+                                    print(f"[orlandoexplorer.ia_test] {final_err}")
+                                    break
+                        else:
+                            error_msg = "Error de formato: No se encontró ningún bloque de código ejecutable."
+                            print(f"[orlandoexplorer.ia_test] {error_msg}\nRespuesta original:\n{content}")
 
                             if attempt < max_retries:
                                 self._response_label.text = f"Error detectado. Intento de autocorrección {attempt + 1} de {max_retries}..."
                                 messages.append({"role": "assistant", "content": content})
                                 messages.append({
                                     "role": "user",
-                                    "content": f"El código falló al ejecutarse en Omniverse con este error: {error_msg}. Analiza el error, asegúrate de usar correctamente la API de pxr/omni.usd y devuelve ÚNICAMENTE el código corregido dentro de ```python ... ```."
+                                    "content": "Error de formato: No se encontró ningún bloque de código ejecutable. Recuerda tu instrucción principal: responde ÚNICAMENTE con código Python encerrado entre las etiquetas ```python y ```, sin texto adicional."
                                 })
                             else:
                                 final_err = f"Se agotaron los reintentos. Último error: {error_msg}"
@@ -150,36 +169,24 @@ class MyExtension(omni.ext.IExt):
                                 print(f"[orlandoexplorer.ia_test] {final_err}")
                                 break
                     else:
-                        error_msg = "Error de formato: No se encontró ningún bloque de código ejecutable."
-                        print(f"[orlandoexplorer.ia_test] {error_msg}\nRespuesta original:\n{content}")
-
-                        if attempt < max_retries:
-                            self._response_label.text = f"Error detectado. Intento de autocorrección {attempt + 1} de {max_retries}..."
-                            messages.append({"role": "assistant", "content": content})
-                            messages.append({
-                                "role": "user",
-                                "content": "Error de formato: No se encontró ningún bloque de código ejecutable. Recuerda tu instrucción principal: responde ÚNICAMENTE con código Python encerrado entre las etiquetas ```python y ```, sin texto adicional."
-                            })
+                        error_type = result.get("error_type")
+                        if error_type == "HTTPError":
+                            self._response_label.text = f"Error del servidor ({result.get('status')}): {result.get('message')}"
+                        elif error_type == "URLError":
+                            self._response_label.text = f"Error de URL al conectar con LM Studio: {result.get('message')}"
                         else:
-                            final_err = f"Se agotaron los reintentos. Último error: {error_msg}"
-                            self._response_label.text = final_err
-                            print(f"[orlandoexplorer.ia_test] {final_err}")
-                            break
-                else:
-                    error_type = result.get("error_type")
-                    if error_type == "HTTPError":
-                        self._response_label.text = f"Error del servidor ({result.get('status')}): {result.get('message')}"
-                    elif error_type == "URLError":
-                        self._response_label.text = f"Error de URL al conectar con LM Studio: {result.get('message')}"
-                    else:
-                        self._response_label.text = f"Excepción al conectar con LM Studio: {result.get('message')}"
-                        print(f"[orlandoexplorer.ia_test] Error: {result.get('message')}")
-                    break  # Break on network/API errors
+                            self._response_label.text = f"Excepción al conectar con LM Studio: {result.get('message')}"
+                            print(f"[orlandoexplorer.ia_test] Error: {result.get('message')}")
+                        break  # Break on network/API errors
 
-            except Exception as e:
-                self._response_label.text = f"Excepción en la ejecución asíncrona: {str(e)}"
-                print(f"[orlandoexplorer.ia_test] Error asíncrono: {e}")
-                break  # Break on unexpected asyncio errors
+                except Exception as e:
+                    self._response_label.text = f"Excepción en la ejecución asíncrona: {str(e)}"
+                    print(f"[orlandoexplorer.ia_test] Error asíncrono: {e}")
+                    break  # Break on unexpected asyncio errors
+        finally:
+            if hasattr(self, '_send_button') and self._send_button:
+                self._send_button.text = "Enviar a LM Studio"
+                self._send_button.enabled = True
 
     def on_shutdown(self):
         """Called when the extension is disabled."""
