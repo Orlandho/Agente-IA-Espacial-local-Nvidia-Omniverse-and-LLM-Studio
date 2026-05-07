@@ -83,11 +83,9 @@ class MyExtension(omni.ext.IExt):
         url = "http://localhost:1234/v1/chat/completions"
 
         system_prompt = (
-            "Eres un experto desarrollador de Python para NVIDIA Omniverse. "
-            "Tu tarea es generar código Python válido para manipular escenas en Omniverse basándote en la petición del usuario. "
-            "Debes utilizar omni.usd.get_context().get_stage() y las clases correspondientes de pxr (como UsdGeom.Cube, UsdGeom.Sphere, etc.). "
-            "Tienes prohibido incluir explicaciones, saludos o cualquier texto adicional. "
-            "Debes responder única y estrictamente con un bloque de código Python delimitado por ```python y ```."
+            "Eres un asistente de IA avanzado para NVIDIA Omniverse. Puedes conversar libremente y ayudar al usuario con cualquier duda. "
+            "SIN EMBARGO, si el usuario te pide crear, instanciar o modificar objetos 3D, debes cumplir su orden escribiendo el código en Python "
+            "usando omni.usd y pxr dentro de un bloque delimitado por ```python y ```. Puedes acompañar el código con una explicación amigable."
         )
 
         messages = [
@@ -130,7 +128,7 @@ class MyExtension(omni.ext.IExt):
                         try:
                             # Dynamically execute the extracted code
                             exec(extracted_code, exec_globals)
-                            self._response_label.text = f"Código ejecutado exitosamente:\n{extracted_code}"
+                            self._response_label.text = content + "\n\n[Sistema: Código ejecutado exitosamente]"
                             break  # Exit loop on success
                         except Exception as exec_err:
                             error_msg = str(exec_err)
@@ -142,7 +140,7 @@ class MyExtension(omni.ext.IExt):
                                 messages.append({"role": "assistant", "content": content})
                                 messages.append({
                                     "role": "user",
-                                    "content": f"El código falló al ejecutarse en Omniverse con este error: {error_msg}. Analiza el error, asegúrate de usar correctamente la API de pxr/omni.usd y devuelve ÚNICAMENTE el código corregido dentro de ```python ... ```."
+                                    "content": f"El código falló con este error: {error_msg}. Por favor, analiza el problema y devuelve el código corregido dentro de las etiquetas ```python y ```."
                                 })
                             else:
                                 final_err = f"Se agotaron los reintentos. Último error: {error_msg}"
@@ -150,21 +148,9 @@ class MyExtension(omni.ext.IExt):
                                 print(f"[orlandoexplorer.ia_test] {final_err}")
                                 break
                     else:
-                        error_msg = "Error de formato: No se encontró ningún bloque de código ejecutable."
-                        print(f"[orlandoexplorer.ia_test] {error_msg}\nRespuesta original:\n{content}")
-
-                        if attempt < max_retries:
-                            self._response_label.text = f"Error detectado. Intento de autocorrección {attempt + 1} de {max_retries}..."
-                            messages.append({"role": "assistant", "content": content})
-                            messages.append({
-                                "role": "user",
-                                "content": "Error de formato: No se encontró ningún bloque de código ejecutable. Recuerda tu instrucción principal: responde ÚNICAMENTE con código Python encerrado entre las etiquetas ```python y ```, sin texto adicional."
-                            })
-                        else:
-                            final_err = f"Se agotaron los reintentos. Último error: {error_msg}"
-                            self._response_label.text = final_err
-                            print(f"[orlandoexplorer.ia_test] {final_err}")
-                            break
+                        # No code block found, treat as normal conversation
+                        self._response_label.text = content
+                        break  # Exit loop as it's a valid response without code
                 else:
                     error_type = result.get("error_type")
                     if error_type == "HTTPError":
