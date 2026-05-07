@@ -1,28 +1,26 @@
-# Agentic AI Chat for NVIDIA Omniverse
+# Local AI Chat For Nvidia Omniverse
 
-This project is an advanced implementation to integrate **Spatial AI Agents** within the NVIDIA Omniverse ecosystem. It acts as a hybrid assistant capable of maintaining natural conversations and dynamically generating, executing, and correcting Python code to manipulate 3D geometry in OpenUSD.
+Este proyecto es una implementación de investigación para integrar Agentes de IA Espacial dentro del ecosistema de NVIDIA Omniverse utilizando modelos de lenguaje (LLM) ejecutados localmente.
 
-## System Architecture
-The system employs an asynchronous and fault-tolerant architecture to ensure the performance of the rendering engine:
-* **Frontend UI:** Modern chat-style interface built with the NVIDIA Omniverse Kit SDK (`omni.ui`), including message history and support for long dynamic wait times.
-* **Native Communication:** Asynchronous requests strictly implemented with standard Python libraries (`urllib` and `asyncio` with `run_in_executor`) to avoid external dependencies that break the engine's closed environment, without blocking the main rendering thread.
-* **Reflection Loop (Self-Healing):** A feedback system where, if the AI generates invalid OpenUSD code, the agent captures Omniverse's internal `stack trace` and sends it back to itself to attempt autonomous self-correction.
-* **Inference Engine:** Compatible with any endpoint that respects the OpenAI API structure. Primarily designed for total privacy using locally run LLMs (e.g., LM Studio, Ollama), but easily scalable to cloud APIs.
+## Arquitectura del Sistema
+El sistema emplea una arquitectura desacoplada para garantizar el rendimiento del motor de renderizado:
+* **Frontend:** NVIDIA Omniverse Kit SDK (Python).
+* **Comunicación:** Peticiones asíncronas vía `aiohttp` para evitar el bloqueo del hilo de renderizado principal.
+* **Inferencia:** Servidor local compatible con OpenAI API (LM Studio) ejecutando Gemma 4.
 
-## Key Features
-* **Hybrid Agent:** Capable of answering general questions conversationally, or instantiating and manipulating stages directly when code is requested.
-* **Dynamic Execution:** Uses `exec()` by injecting global contexts (`omni`, `pxr.Usd`, `pxr.UsdGeom`, `pxr.Gf`) to run scripts on the fly.
-* **Local Inference (Air-Gapped Ready):** Absolute data privacy by processing parameters on the local network.
-* **Professional Interface:** Decoupled panels, buttons with state feedback ("Processing..."), and dynamic timeout (configurable to 10+ minutes for local hardware).
+## Características Principales
+* **Interfaz Asíncrona:** UI construida con `omni.ui` que no se congela durante la inferencia de la IA.
+* **Inferencia Local:** Privacidad total y baja latencia al procesar datos sin salir de la red local (Air-gapped ready).
+* **Extensibilidad:** Diseñado como un módulo de Omniverse para futura manipulación de objetos OpenUSD mediante código generado por IA.
 
-## Requirements
+## Requisitos
 * Windows 11.
-* NVIDIA RTX graphics card (40 Series or higher with Ada Lovelace support recommended for heavy local models).
-* NVIDIA Omniverse Launcher & Kit App Template.
-* Active inference server (e.g., LM Studio running a model on port `1234`).
+* Tarjeta gráfica NVIDIA RTX (Serie 40 o superior con soporte Ada Lovelace).
+* Kit App Template (NVIDIA Kit SDK).
+* LM Studio con servidor activo en puerto 1234.
 
-## Installation and Execution
-1. Clone the repository locally.
-2. Run `.\repo.bat build` in the terminal to resolve SDK symlinks and build the modules.
-3. Launch the development environment using the command `.\repo.bat launch`.
-4. Go to the **Window > Extensions** menu and enable the `orlandoexplorer.ia_test` extension.
+## Instalación y Ejecución
+1. Clonar el repositorio.
+2. Ejecutar `.\repo.bat build` para resolver las dependencias del SDK y compilar los módulos.
+3. Lanzar el entorno de desarrollo con el comando `.\repo.bat launch`.
+4. Habilitar la extensión `orlandoexplorer.ia_test` desde el Gestor de Extensiones.
