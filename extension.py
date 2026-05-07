@@ -47,7 +47,7 @@ class MyExtension(omni.ext.IExt):
                     self._response_label = ui.Label(
                         "Esperando entrada...", 
                         word_wrap=True, 
-                        alignment=ui.Alignment.TOP_LEFT
+                        alignment=ui.Alignment.LEFT_TOP
                     )
 
     def _on_send_clicked(self):
