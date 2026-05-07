@@ -12,8 +12,11 @@ import asyncio
 import urllib.request
 import urllib.error
 import json
+import re
 import omni.ext
 import omni.ui as ui
+import pxr
+from pxr import Usd, UsdGeom, Gf
 
 
 class MyExtension(omni.ext.IExt):
@@ -78,9 +81,19 @@ class MyExtension(omni.ext.IExt):
     async def _send_to_lm_studio(self, prompt: str):
         """Asynchronous HTTP request to LM Studio local server without blocking UI."""
         url = "http://localhost:1234/v1/chat/completions"
+
+        system_prompt = (
+            "Eres un experto desarrollador de Python para NVIDIA Omniverse. "
+            "Tu tarea es generar código Python válido para manipular escenas en Omniverse basándote en la petición del usuario. "
+            "Debes utilizar omni.usd.get_context().get_stage() y las clases correspondientes de pxr (como UsdGeom.Cube, UsdGeom.Sphere, etc.). "
+            "Tienes prohibido incluir explicaciones, saludos o cualquier texto adicional. "
+            "Debes responder única y estrictamente con un bloque de código Python delimitado por ```python y ```."
+        )
+
         payload = {
             "model": "local-model",
             "messages": [
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.7
@@ -95,7 +108,34 @@ class MyExtension(omni.ext.IExt):
             if result.get("success"):
                 data = result.get("data", {})
                 content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
-                self._response_label.text = content
+
+                # Extract Python code using regex
+                match = re.search(r'```python\s*(.*?)\s*```', content, re.DOTALL)
+                if match:
+                    extracted_code = match.group(1).strip()
+
+                    # Prepare execution environment
+                    exec_globals = {
+                        "omni": omni,
+                        "pxr": pxr,
+                        "Usd": Usd,
+                        "UsdGeom": UsdGeom,
+                        "Gf": Gf
+                    }
+
+                    try:
+                        # Dynamically execute the extracted code
+                        exec(extracted_code, exec_globals)
+                        self._response_label.text = f"Código ejecutado exitosamente:\n{extracted_code}"
+                    except Exception as exec_err:
+                        error_msg = f"Error en la ejecución del código: {str(exec_err)}"
+                        self._response_label.text = error_msg
+                        print(f"[orlandoexplorer.ia_test] {error_msg}")
+                        print(f"[orlandoexplorer.ia_test] Código que falló:\n{extracted_code}")
+                else:
+                    error_msg = "Error: No se encontró un bloque de código Python válido en la respuesta."
+                    self._response_label.text = error_msg
+                    print(f"[orlandoexplorer.ia_test] {error_msg}\nRespuesta original:\n{content}")
             else:
                 error_type = result.get("error_type")
                 if error_type == "HTTPError":
