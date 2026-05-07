@@ -1,4 +1,4 @@
-# Omniverse Local AI Agent Explorer
+# Local AI Chat For Nvidia Omniverse
 
 Este proyecto es una implementación de investigación para integrar Agentes de IA Espacial dentro del ecosistema de NVIDIA Omniverse utilizando modelos de lenguaje (LLM) ejecutados localmente.
 
