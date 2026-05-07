@@ -26,32 +26,47 @@ class MyExtension(omni.ext.IExt):
         """Called when the extension is enabled."""
         print("[orlandoexplorer.ia_test] LM Studio Extension startup")
 
-        self._window = ui.Window("IA Test LM Studio", width=400, height=450)
+        self._window = ui.Window("IA Test LM Studio", width=800, height=600)
         
         with self._window.frame:
-            with ui.VStack(spacing=10, padding=10):
-                ui.Label("Prompt para LM Studio:", height=20)
+            with ui.HStack():
+                # Panel Izquierdo (Barra lateral)
+                with ui.VStack(width=200, style={"background_color": 0xFF1E1E1E}, padding=10, spacing=10):
+                    ui.Button("Nuevo Chat", height=30)
+                    ui.Spacer()
+                    ui.Button("Configuraciones", height=30)
                 
-                # Multi-line StringField for user input
-                self._input_field = ui.StringField(multiline=True, height=150)
-                self._input_field.model.set_value("Hola, ¿cómo estás?")
-                
-                # Send Button
-                self._send_button = ui.Button(
-                    "Enviar a LM Studio", 
-                    clicked_fn=self._on_send_clicked,
-                    height=40
-                )
-                
-                ui.Label("Respuesta:", height=20)
-                
-                # Response Label with word wrap
-                with ui.ScrollingFrame(height=200, style={"background_color": 0xFF222222}):
-                    self._response_label = ui.Label(
-                        "Esperando entrada...", 
-                        word_wrap=True, 
-                        alignment=ui.Alignment.LEFT_TOP
-                    )
+                # Panel Derecho (Principal)
+                with ui.VStack(width=ui.Fraction(1), spacing=10, padding=10):
+                    # Historial de mensajes (ScrollingFrame)
+                    with ui.ScrollingFrame(height=ui.Fraction(1), style={"background_color": 0xFF222222}):
+                        self._response_label = ui.Label(
+                            "Esperando entrada...",
+                            word_wrap=True,
+                            alignment=ui.Alignment.LEFT_TOP
+                        )
+
+                    # Controles de entrada (Abajo)
+                    with ui.HStack(height=40, spacing=10):
+                        # Botón "+" cuadrado
+                        ui.Button(
+                            "+",
+                            width=40,
+                            height=40,
+                            clicked_fn=lambda: print("Abrir explorador de archivos")
+                        )
+
+                        # Campo de texto multilinea
+                        self._input_field = ui.StringField(multiline=True, height=40, width=ui.Fraction(1))
+                        self._input_field.model.set_value("Hola, ¿cómo estás?")
+
+                        # Botón de enviar
+                        self._send_button = ui.Button(
+                            "Enviar",
+                            width=100,
+                            height=40,
+                            clicked_fn=self._on_send_clicked
+                        )
 
     def _on_send_clicked(self):
         """Callback for the button click."""
