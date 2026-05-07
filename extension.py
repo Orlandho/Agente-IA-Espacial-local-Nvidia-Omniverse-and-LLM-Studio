@@ -26,32 +26,47 @@ class MyExtension(omni.ext.IExt):
         """Called when the extension is enabled."""
         print("[orlandoexplorer.ia_test] LM Studio Extension startup")
 
-        self._window = ui.Window("IA Test LM Studio", width=400, height=450)
+        self._window = ui.Window("IA Test LM Studio", width=800, height=600)
         
         with self._window.frame:
-            with ui.VStack(spacing=10, padding=10):
-                ui.Label("Prompt para LM Studio:", height=20)
+            with ui.HStack():
+                # Panel Izquierdo (Barra lateral)
+                with ui.VStack(width=200, style={"background_color": 0xFF1E1E1E}, padding=10, spacing=10):
+                    ui.Button("Nuevo Chat", height=30)
+                    ui.Spacer()
+                    ui.Button("Configuraciones", height=30)
                 
-                # Multi-line StringField for user input
-                self._input_field = ui.StringField(multiline=True, height=150)
-                self._input_field.model.set_value("Hola, ¿cómo estás?")
-                
-                # Send Button
-                self._send_button = ui.Button(
-                    "Enviar a LM Studio", 
-                    clicked_fn=self._on_send_clicked,
-                    height=40
-                )
-                
-                ui.Label("Respuesta:", height=20)
-                
-                # Response Label with word wrap
-                with ui.ScrollingFrame(height=200, style={"background_color": 0xFF222222}):
-                    self._response_label = ui.Label(
-                        "Esperando entrada...", 
-                        word_wrap=True, 
-                        alignment=ui.Alignment.LEFT_TOP
-                    )
+                # Panel Derecho (Principal)
+                with ui.VStack(width=ui.Fraction(1), spacing=10, padding=10):
+                    # Historial de mensajes (ScrollingFrame)
+                    with ui.ScrollingFrame(height=ui.Fraction(1), style={"background_color": 0xFF222222}):
+                        self._response_label = ui.Label(
+                            "Esperando entrada...",
+                            word_wrap=True,
+                            alignment=ui.Alignment.LEFT_TOP
+                        )
+
+                    # Controles de entrada (Abajo)
+                    with ui.HStack(height=40, spacing=10):
+                        # Botón "+" cuadrado
+                        ui.Button(
+                            "+",
+                            width=40,
+                            height=40,
+                            clicked_fn=lambda: print("Abrir explorador de archivos")
+                        )
+
+                        # Campo de texto multilinea
+                        self._input_field = ui.StringField(multiline=True, height=40, width=ui.Fraction(1))
+                        self._input_field.model.set_value("Hola, ¿cómo estás?")
+
+                        # Botón de enviar
+                        self._send_button = ui.Button(
+                            "Enviar",
+                            width=100,
+                            height=40,
+                            clicked_fn=self._on_send_clicked
+                        )
 
     def _on_send_clicked(self):
         """Callback for the button click."""
@@ -83,11 +98,9 @@ class MyExtension(omni.ext.IExt):
         url = "http://localhost:1234/v1/chat/completions"
 
         system_prompt = (
-            "Eres un experto desarrollador de Python para NVIDIA Omniverse. "
-            "Tu tarea es generar código Python válido para manipular escenas en Omniverse basándote en la petición del usuario. "
-            "Debes utilizar omni.usd.get_context().get_stage() y las clases correspondientes de pxr (como UsdGeom.Cube, UsdGeom.Sphere, etc.). "
-            "Tienes prohibido incluir explicaciones, saludos o cualquier texto adicional. "
-            "Debes responder única y estrictamente con un bloque de código Python delimitado por ```python y ```."
+            "Eres un asistente de IA avanzado para NVIDIA Omniverse. Puedes conversar libremente y ayudar al usuario con cualquier duda. "
+            "SIN EMBARGO, si el usuario te pide crear, instanciar o modificar objetos 3D, debes cumplir su orden escribiendo el código en Python "
+            "usando omni.usd y pxr dentro de un bloque delimitado por ```python y ```. Puedes acompañar el código con una explicación amigable."
         )
 
         messages = [
@@ -130,7 +143,7 @@ class MyExtension(omni.ext.IExt):
                         try:
                             # Dynamically execute the extracted code
                             exec(extracted_code, exec_globals)
-                            self._response_label.text = f"Código ejecutado exitosamente:\n{extracted_code}"
+                            self._response_label.text = content + "\n\n[Sistema: Código ejecutado exitosamente]"
                             break  # Exit loop on success
                         except Exception as exec_err:
                             error_msg = str(exec_err)
@@ -142,7 +155,7 @@ class MyExtension(omni.ext.IExt):
                                 messages.append({"role": "assistant", "content": content})
                                 messages.append({
                                     "role": "user",
-                                    "content": f"El código falló al ejecutarse en Omniverse con este error: {error_msg}. Analiza el error, asegúrate de usar correctamente la API de pxr/omni.usd y devuelve ÚNICAMENTE el código corregido dentro de ```python ... ```."
+                                    "content": f"El código falló con este error: {error_msg}. Por favor, analiza el problema y devuelve el código corregido dentro de las etiquetas ```python y ```."
                                 })
                             else:
                                 final_err = f"Se agotaron los reintentos. Último error: {error_msg}"
@@ -150,21 +163,9 @@ class MyExtension(omni.ext.IExt):
                                 print(f"[orlandoexplorer.ia_test] {final_err}")
                                 break
                     else:
-                        error_msg = "Error de formato: No se encontró ningún bloque de código ejecutable."
-                        print(f"[orlandoexplorer.ia_test] {error_msg}\nRespuesta original:\n{content}")
-
-                        if attempt < max_retries:
-                            self._response_label.text = f"Error detectado. Intento de autocorrección {attempt + 1} de {max_retries}..."
-                            messages.append({"role": "assistant", "content": content})
-                            messages.append({
-                                "role": "user",
-                                "content": "Error de formato: No se encontró ningún bloque de código ejecutable. Recuerda tu instrucción principal: responde ÚNICAMENTE con código Python encerrado entre las etiquetas ```python y ```, sin texto adicional."
-                            })
-                        else:
-                            final_err = f"Se agotaron los reintentos. Último error: {error_msg}"
-                            self._response_label.text = final_err
-                            print(f"[orlandoexplorer.ia_test] {final_err}")
-                            break
+                        # No code block found, treat as normal conversation
+                        self._response_label.text = content
+                        break  # Exit loop as it's a valid response without code
                 else:
                     error_type = result.get("error_type")
                     if error_type == "HTTPError":
