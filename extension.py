@@ -73,6 +73,8 @@ class MyExtension(omni.ext.IExt):
         prompt = self._input_field.model.get_value_as_string()
         if prompt:
             self._response_label.text = "Enviando petición a LM Studio..."
+            self._send_button.text = "Procesando..."
+            self._send_button.enabled = False
             # Launch the async task in the background
             asyncio.ensure_future(self._send_to_lm_studio(prompt))
 
@@ -82,7 +84,7 @@ class MyExtension(omni.ext.IExt):
         req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'}, method='POST')
 
         try:
-            with urllib.request.urlopen(req, timeout=30) as response:
+            with urllib.request.urlopen(req, timeout=600) as response:
                 response_body = response.read().decode('utf-8')
                 return {"success": True, "data": json.loads(response_body)}
         except urllib.error.HTTPError as e:
@@ -173,14 +175,24 @@ class MyExtension(omni.ext.IExt):
                     elif error_type == "URLError":
                         self._response_label.text = f"Error de URL al conectar con LM Studio: {result.get('message')}"
                     else:
-                        self._response_label.text = f"Excepción al conectar con LM Studio: {result.get('message')}"
-                        print(f"[orlandoexplorer.ia_test] Error: {result.get('message')}")
-                    break  # Break on network/API errors
+                        error_type = result.get("error_type")
+                        if error_type == "HTTPError":
+                            self._response_label.text = f"Error del servidor ({result.get('status')}): {result.get('message')}"
+                        elif error_type == "URLError":
+                            self._response_label.text = f"Error de URL al conectar con LM Studio: {result.get('message')}"
+                        else:
+                            self._response_label.text = f"Excepción al conectar con LM Studio: {result.get('message')}"
+                            print(f"[orlandoexplorer.ia_test] Error: {result.get('message')}")
+                        break  # Break on network/API errors
 
-            except Exception as e:
-                self._response_label.text = f"Excepción en la ejecución asíncrona: {str(e)}"
-                print(f"[orlandoexplorer.ia_test] Error asíncrono: {e}")
-                break  # Break on unexpected asyncio errors
+                except Exception as e:
+                    self._response_label.text = f"Excepción en la ejecución asíncrona: {str(e)}"
+                    print(f"[orlandoexplorer.ia_test] Error asíncrono: {e}")
+                    break  # Break on unexpected asyncio errors
+        finally:
+            if hasattr(self, '_send_button') and self._send_button:
+                self._send_button.text = "Enviar"
+                self._send_button.enabled = True
 
     def on_shutdown(self):
         """Called when the extension is disabled."""
