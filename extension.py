@@ -27,24 +27,31 @@ class MyExtension(omni.ext.IExt):
 
     def _on_send_message_callback(self, prompt: str):
         """Callback triggered by the UI when the user clicks 'Enviar'."""
-        self._chat_window.set_response_text("Enviando petición a LM Studio...")
+        self._chat_window.add_message_bubble("user", prompt)
+        self._chat_window.add_message_bubble("assistant", "")
         self._chat_window.set_button_state(processing=True)
+
         # Launch the async task in the background
         asyncio.ensure_future(self._process_message_async(prompt))
 
     async def _process_message_async(self, prompt: str):
         """Background task to handle prompt processing without blocking UI."""
         try:
-            # We pass a callback so the AgentManager can update the UI directly if retries happen
+            # We pass callbacks so the AgentManager can update the UI dynamically
             final_response = await self._agent_manager.process_prompt(
                 prompt,
-                update_callback=self._chat_window.set_response_text
+                append_callback=self._chat_window.append_to_last_message,
+                ui_feedback_callback=self._chat_window.add_message_bubble
             )
-            self._chat_window.set_response_text(final_response)
+
+            # If final response is an error message not caught by streaming
+            if final_response.startswith("Excepción") or final_response.startswith("Error"):
+                self._chat_window.append_to_last_message(f"\n\n[Error: {final_response}]")
+
         except Exception as e:
-            error_msg = f"Excepción grave en el orquestador: {str(e)}"
+            error_msg = f"\n\nExcepción grave en el orquestador: {str(e)}"
             print(f"[orlandoexplorer.ia_test] {error_msg}")
-            self._chat_window.set_response_text(error_msg)
+            self._chat_window.append_to_last_message(error_msg)
         finally:
             if self._chat_window:
                 self._chat_window.set_button_state(processing=False)
