@@ -1,1 +1,24 @@
-
+cff-version: 1.2.0
+message: "Si utilizas este software, por favor cítalo utilizando estos metadatos."
+authors:
+  - family-names: "Dorival Castañeda"
+    given-names: "Orlando Jesús"
+    affiliation: "Universidad Privada del Norte"
+    orcid: "https://orcid.org/0009-0007-4312-108X"
+title: "Agentic AI Chat for NVIDIA Omniverse"
+abstract: >-
+  Implementación avanzada de un chat con IA agéntica para el ecosistema NVIDIA Omniverse. 
+  Actúa como un asistente híbrido capaz de mantener conversaciones naturales y manipular 
+  geometría 3D en OpenUSD mediante un bucle de autorreflexión (Self-Healing).
+version: 0.0.37
+date-released: 2026-05-08
+url: "https://github.com/Orlandho/LM-Chat"
+repository-code: "https://github.com/Orlandho/LM-Chat"
+keywords:
+  - "NVIDIA Omniverse"
+  - "OpenUSD"
+  - "Agentic AI"
+  - "Spatial AI"
+  - "Python"
+  - "ReAct Pattern"
+license: Apache-2.0
