@@ -38,26 +38,30 @@ class ChatWindow:
                         self._messages_stack = ui.VStack(spacing=10, padding=10)
 
                     # Controles de entrada (Abajo)
-                    with ui.HStack(height=40, spacing=10):
-                        # Botón "+" cuadrado
-                        ui.Button(
-                            "+",
-                            width=40,
-                            height=40,
-                            clicked_fn=lambda: print("Abrir explorador de archivos")
-                        )
+                    with ui.HStack(height=80, spacing=10):
+                        # Botón "+" cuadrado (centrado abajo si es necesario, o lo dejamos estirar. Usamos alignment para que se quede arriba o centrado, pero como no hay, por defecto se estirará o no)
+                        with ui.VStack(width=40):
+                            ui.Spacer()
+                            ui.Button(
+                                "+",
+                                width=40,
+                                height=40,
+                                clicked_fn=lambda: print("Abrir explorador de archivos")
+                            )
 
-                        # Campo de texto multilinea
-                        self._input_field = ui.StringField(multiline=True, height=40, width=ui.Fraction(1))
+                        # Campo de texto multilinea (más alto para permitir saltos de línea visibles sin scrollear a la izquierda infinito)
+                        self._input_field = ui.StringField(multiline=True, height=80, width=ui.Fraction(1))
                         self._input_field.model.set_value("")
 
                         # Botón de enviar
-                        self._send_button = ui.Button(
-                            "Enviar",
-                            width=100,
-                            height=40,
-                            clicked_fn=self._handle_send_clicked
-                        )
+                        with ui.VStack(width=100):
+                            ui.Spacer()
+                            self._send_button = ui.Button(
+                                "Enviar",
+                                width=100,
+                                height=40,
+                                clicked_fn=self._handle_send_clicked
+                            )
 
     def _handle_send_clicked(self):
         """Internal callback for the send button."""
@@ -92,30 +96,37 @@ class ChatWindow:
 
         # Determine alignment and colors
         alignment = ui.Alignment.RIGHT if is_user else ui.Alignment.LEFT
-        bg_color = 0xFF444444 if is_user else 0xFF2A2A2A
-        margin_width = ui.Fraction(1)
+        bg_color = 0xFF2B5278 if is_user else 0xFF3A3A3A
+        margin_fraction = ui.Fraction(1)
+        bubble_fraction = ui.Fraction(4)  # 80% max width (4 out of 5)
 
         with self._messages_stack:
-            with ui.HStack():
+            with ui.HStack(height=0):
                 if is_user:
-                    ui.Spacer(width=margin_width)
+                    ui.Spacer(width=margin_fraction)
 
-                with ui.ZStack(width=0): # Auto-sizing container
-                    ui.Rectangle(style={"background_color": bg_color, "border_radius": 8})
-                    with ui.VStack(padding=10):
-                        label = ui.Label(
-                            text,
-                            word_wrap=True,
-                            alignment=ui.Alignment.LEFT_TOP,
-                            style={"color": 0xFFFFFFFF, "font_size": 14}
-                        )
-                        # We keep a reference if we need to stream into it.
-                        # We only stream to assistant, but we keep track anyway.
-                        if role == "assistant":
-                            self._message_labels.append(label)
+                with ui.VStack(width=bubble_fraction):
+                    with ui.HStack(height=0):
+                        if is_user:
+                            ui.Spacer()
+                        with ui.ZStack(): # Auto-sizing container
+                            ui.Rectangle(style={"background_color": bg_color, "border_radius": 8})
+                            with ui.VStack(padding=10, height=0):
+                                label = ui.Label(
+                                    text,
+                                    word_wrap=True,
+                                    alignment=ui.Alignment.LEFT_TOP,
+                                    style={"color": 0xFFFFFFFF, "font_size": 14}
+                                )
+                                # We keep a reference if we need to stream into it.
+                                # We only stream to assistant, but we keep track anyway.
+                                if role == "assistant":
+                                    self._message_labels.append(label)
+                        if not is_user:
+                            ui.Spacer()
 
                 if not is_user:
-                    ui.Spacer(width=margin_width)
+                    ui.Spacer(width=margin_fraction)
 
         self._scroll_to_bottom()
 
