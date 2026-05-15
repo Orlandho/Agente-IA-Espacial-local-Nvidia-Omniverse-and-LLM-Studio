@@ -127,13 +127,13 @@ class ChatWindow:
                         with ui.HStack(width=0, spacing=5):
                             if is_user:
                                 # User copy button on the left
-                                with ui.VStack(width=20):
+                                with ui.VStack(width=60):
                                     ui.Spacer()
                                     copy_btn = ui.Button(
-                                        "",
-                                        width=20, height=20,
+                                        "Copiar",
+                                        width=60, height=20,
                                         tooltip="Copiar texto",
-                                        style={"font_family": "FontAwesome5Free-Regular", "font_size": 14}
+                                        style={"font_size": 14}
                                     )
 
                             # The bubble itself. width=0 allows adjusting to content (if short),
@@ -153,13 +153,13 @@ class ChatWindow:
 
                             if not is_user:
                                 # Assistant copy button on the right
-                                with ui.VStack(width=20):
+                                with ui.VStack(width=60):
                                     ui.Spacer()
                                     copy_btn = ui.Button(
-                                        "",
-                                        width=20, height=20,
+                                        "Copiar",
+                                        width=60, height=20,
                                         tooltip="Copiar texto",
-                                        style={"font_family": "FontAwesome5Free-Regular", "font_size": 14}
+                                        style={"font_size": 14}
                                     )
 
                             copy_btn.set_clicked_fn(lambda l=label: self._copy_to_clipboard(l))
