@@ -65,7 +65,11 @@ class ChatWindow:
                             )
 
     def _copy_to_clipboard(self, text_label):
-        """Copies the text of a given label to the clipboard."""
+        """Copies the text of a given label to the system clipboard.
+
+        Args:
+            text_label (omni.ui.Label): The label widget containing the text to copy.
+        """
         try:
             if text_label and hasattr(text_label, "text"):
                 app_window = omni.appwindow.get_default_app_window()
@@ -95,16 +99,15 @@ class ChatWindow:
         asyncio.ensure_future(scroll_down())
 
     def add_message_bubble(self, role: str, text: str = ""):
-        """
-        Creates a new message bubble in the UI.
+        """Creates a new message bubble in the UI.
 
         Args:
-            role (str): "user" or "assistant".
-            text (str): Initial text of the bubble.
+            role (str): The role of the message sender. Must be "user" or "assistant".
+            text (str, optional): The initial text content of the message bubble. Defaults to "".
         """
         is_user = (role == "user")
 
-        # Determine alignment and colors
+        # Determine colors and alignment
         bg_color = 0xFF2B5278 if is_user else 0xFF3A3A3A
         margin_fraction = ui.Fraction(1)
         bubble_fraction = ui.Fraction(4)  # 80% max width (4 out of 5)
@@ -114,17 +117,29 @@ class ChatWindow:
                 if is_user:
                     ui.Spacer(width=margin_fraction)
 
+                # VStack acts as a max-width container (80%)
                 with ui.VStack(width=bubble_fraction):
                     with ui.HStack(height=0):
                         if is_user:
                             ui.Spacer()
-                        with ui.HStack(width=0, spacing=5): # Wrap ZStack and Copy button
+
+                        # HStack to hold button and bubble side-by-side
+                        with ui.HStack(width=0, spacing=5):
                             if is_user:
-                                # For user, copy button goes to the left of the bubble
+                                # User copy button on the left
                                 with ui.VStack(width=20):
                                     ui.Spacer()
-                                    copy_btn = ui.Button("📋", width=20, height=20, tooltip="Copiar texto")
-                            with ui.ZStack(width=0): # width=0 allows auto-sizing to content, max is limited by parent VStack
+                                    copy_btn = ui.Button(
+                                        "",
+                                        width=20, height=20,
+                                        tooltip="Copiar texto",
+                                        style={"font_family": "FontAwesome5Free-Regular", "font_size": 14}
+                                    )
+
+                            # The bubble itself. width=0 allows adjusting to content (if short),
+                            # but the word_wrap=True allows long text to wrap instead of overflowing horizontally,
+                            # confined by the parent VStack(bubble_fraction).
+                            with ui.ZStack(width=0):
                                 ui.Rectangle(style={"background_color": bg_color, "border_radius": 8})
                                 with ui.VStack(padding=10, height=0):
                                     label = ui.Label(
@@ -133,17 +148,20 @@ class ChatWindow:
                                         alignment=ui.Alignment.LEFT_TOP,
                                         style={"color": 0xFFFFFFFF, "font_size": 14}
                                     )
-                                    # We keep a reference if we need to stream into it.
-                                    # We only stream to assistant, but we keep track anyway.
-                                    if role == "assistant":
+                                    if not is_user:
                                         self._message_labels.append(label)
+
                             if not is_user:
-                                # For assistant, copy button goes to the right of the bubble
+                                # Assistant copy button on the right
                                 with ui.VStack(width=20):
                                     ui.Spacer()
-                                    copy_btn = ui.Button("📋", width=20, height=20, tooltip="Copiar texto")
+                                    copy_btn = ui.Button(
+                                        "",
+                                        width=20, height=20,
+                                        tooltip="Copiar texto",
+                                        style={"font_family": "FontAwesome5Free-Regular", "font_size": 14}
+                                    )
 
-                            # Bind the click event to copy the text from the label
                             copy_btn.set_clicked_fn(lambda l=label: self._copy_to_clipboard(l))
 
                         if not is_user:
